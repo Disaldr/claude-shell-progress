@@ -2,8 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Run } from '../types'
+import type { Language, Strings } from './i18n'
+import { STRINGS, detailText, languageOf } from './i18n'
 import { bar, parseOutcome, parseProgress, truncate } from './parse'
-import { ETA_WIDTH, columnsOf, summaryOf } from './row'
+import { columnsOf, etaWidthOf, stalledFor, summaryOf } from './row'
 
 const runs = atom({ plugin: 'shell-progress', key: 'runs' } as const, [])
 
@@ -118,6 +120,8 @@ type Settings = {
   notifyAfterMs: number
   stallMs: number
   hasGuidance: boolean
+  /** `auto`, or a language code from LANGUAGES. */
+  language: unknown
 }
 
 function settingsOf(options: Readonly<Record<string, unknown>>): Settings {
@@ -128,7 +132,27 @@ function settingsOf(options: Readonly<Record<string, unknown>>): Settings {
     notifyAfterMs: numberOption(options.notifyAfterSeconds, 60) * 1000,
     stallMs: numberOption(options.stallSeconds, 30) * 1000,
     hasGuidance: options.guidance !== false,
+    language: options.language,
   }
+}
+
+let language: Language | null = null
+
+/** The words for the chosen language; `auto` reads the locale once per load. */
+async function stringsOf($: EngineInterface, settings: Settings): Promise<Strings> {
+  if (language === null) {
+    const locales =
+      settings.language === undefined || settings.language === 'auto'
+        ? [
+            await $.env.get('LC_ALL').catch(() => undefined),
+            await $.env.get('LC_MESSAGES').catch(() => undefined),
+            await $.env.get('LANG').catch(() => undefined),
+          ]
+        : []
+    language = languageOf(settings.language, locales)
+  }
+
+  return STRINGS[language]
 }
 
 function patch($: EngineInterface, id: string, fields: Partial<Run>) {
@@ -140,7 +164,9 @@ async function poll($: EngineInterface, run: Run) {
   const text = run.file === null ? null : await readOutput($, run.file)
   const found = text === null ? null : parseProgress(text)
   const now = await $.clock.now()
-  const hasChanged = found !== null && (found.percent !== run.percent || found.detail !== run.detail)
+  const hasChanged =
+    found !== null &&
+    (found.percent !== run.percent || JSON.stringify(found.detail) !== JSON.stringify(run.detail))
   const isFirst = found !== null && run.firstAt === null
 
   await patch($, run.id, {
@@ -188,7 +214,8 @@ async function finish(
     )
   })
   if (settings.notifyAfterMs > 0 && endedAt - done.startedAt >= settings.notifyAfterMs) {
-    void $.ui.notify(summaryOf(done), { title: 'shell-progress' }).catch(() => undefined)
+    const t = await stringsOf($, settings)
+    void $.ui.notify(summaryOf(done, t), { title: 'shell-progress' }).catch(() => undefined)
   }
 }
 
@@ -229,7 +256,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command
-      .register({ name: COMMAND, description: 'Убрать завершённые строки прогресса' })
+      .register({ name: COMMAND, description: (await stringsOf($, settings)).commandDescription })
       .catch(() => undefined)
 
     let isBusy = false
@@ -249,15 +276,11 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: COMMAND }, async $ => {
+    const t = await stringsOf($, settings)
     const finished = (await read($, runs)).filter(run => run.isDone)
     await update($, runs, all => all.filter(run => !run.isDone))
 
-    return {
-      text:
-        finished.length === 0
-          ? 'Нет завершённых задач для очистки.'
-          : `Убрано строк: ${finished.length}.`,
-    }
+    return { text: finished.length === 0 ? t.nothingToClear : t.cleared(finished.length) }
   })
 
   on('prompt.compose', async ($, e, next) => {
@@ -401,6 +424,7 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     const { Box, Button, Text } = $.ui.resolve(e)
+    const t = await stringsOf($, settings)
     const dismiss = (id: string | null) =>
       update($, runs, list => list.filter(run => !run.isDone || (id !== null && run.id !== id)))
     const doneCount = shown.filter(run => run.isDone).length
@@ -408,14 +432,15 @@ export const register: Register = (on, options) => {
 
     // Fixed-width columns first, the free-length description last, so bars line up.
     const width = e.props.bodyColumns < 90 ? Math.min(10, barWidth) : barWidth
-    const detailWidth = Math.max(0, ...rows.map(run => (run.detail ?? '').length))
-    const fixed = 2 + width + 13 + ETA_WIDTH + 1 + (detailWidth > 0 ? detailWidth + 1 : 0) + 2 + 4
+    const detailWidth = Math.max(0, ...rows.map(run => detailText(run.detail, t).length))
+    const fixed =
+      2 + width + 13 + etaWidthOf(t) + 1 + (detailWidth > 0 ? detailWidth + 1 : 0) + 2 + 4
     const labelWidth = Math.max(10, e.props.bodyColumns - fixed)
 
     return (
       <Box flexDirection="column">
         {rows.map(run => {
-          const isStalled = columnsOf(run, stallMs, 0).includes('стоит')
+          const isStalled = stalledFor(run, stallMs) !== null
           const color = run.isFailed ? 'red' : run.isDone ? 'green' : isStalled ? 'yellow' : 'cyan'
           const mark = run.isDone ? (run.isFailed ? '✗' : '✓') : run.taskId !== null ? '◦' : '•'
 
@@ -424,7 +449,7 @@ export const register: Register = (on, options) => {
               <Text color={color} dimColor={isStalled}>
                 {mark} {bar(run.percent ?? 0, width)}
               </Text>
-              <Text dimColor={isStalled}>{columnsOf(run, stallMs, detailWidth)}  </Text>
+              <Text dimColor={isStalled}>{columnsOf(run, stallMs, detailWidth, t)}  </Text>
               <Text dimColor>{truncate(run.label, labelWidth)} </Text>
               {run.isDone && (
                 <Button key={`dismiss-${run.id}`} label="✕" onPress={() => dismiss(run.id)} />
@@ -434,7 +459,7 @@ export const register: Register = (on, options) => {
         })}
         {doneCount > 1 && (
           <Box key="dismiss-all">
-            <Button key="dismiss-all" label="Убрать завершённые" onPress={() => dismiss(null)} />
+            <Button key="dismiss-all" label={t.clearFinished} onPress={() => dismiss(null)} />
           </Box>
         )}
       </Box>

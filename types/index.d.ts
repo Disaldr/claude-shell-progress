@@ -1,3 +1,9 @@
+/** What a measurable result is besides its percent; the band words it in the chosen language. */
+export type Detail =
+  | { kind: 'steps'; done: number; total: number }
+  | { kind: 'tests'; passed: number; total: number; failed: number }
+  | { kind: 'coverage' }
+
 export type Run = {
   id: string
   label: string
@@ -7,7 +13,8 @@ export type Run = {
   /** When the percent or the detail last changed, for the stall mark. */
   changedAt: number
   percent: number | null
-  detail: string | null
+  /** A string only on rows an older version stored. */
+  detail: Detail | string | null
   /** The first percent seen and when, for the ETA. */
   firstPercent: number | null
   firstAt: number | null

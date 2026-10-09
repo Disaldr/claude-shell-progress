@@ -5,11 +5,14 @@ import { bar, formatElapsed, formatPercent, parseOutcome, parseProgress, truncat
 describe('parseProgress', () => {
   test('takes the newest percent across carriage-return redraws', async () => {
     const out = 'Downloading\r 10% |##   |\r 45% |#####  |\r 73.5% |#######|'
-    expect(parseProgress(out)).toEqual({ percent: 73.5, detail: '' })
+    expect(parseProgress(out)).toEqual({ percent: 73.5, detail: null })
   })
 
   test('reads bracketed steps', async () => {
-    expect(parseProgress('[3/8] Linking dependencies...')).toEqual({ percent: 37.5, detail: '3/8' })
+    expect(parseProgress('[3/8] Linking dependencies...')).toEqual({
+      percent: 37.5,
+      detail: { kind: 'steps', done: 3, total: 8 },
+    })
   })
 
   test('reads "N of M"', async () => {
@@ -28,7 +31,10 @@ describe('parseProgress', () => {
 describe('parseOutcome', () => {
   test('jest summary', async () => {
     const out = 'PASS a.test.ts\nTests:       1 failed, 49 passed, 50 total\nTime: 3s'
-    expect(parseOutcome(out)).toEqual({ percent: 98, detail: 'тесты 49/50, упало 1' })
+    expect(parseOutcome(out)).toEqual({
+      percent: 98,
+      detail: { kind: 'tests', passed: 49, total: 50, failed: 1 },
+    })
   })
 
   test('pytest summary', async () => {
@@ -36,13 +42,18 @@ describe('parseOutcome', () => {
   })
 
   test('vitest summary', async () => {
-    expect(parseOutcome(' Tests  2 failed | 6 passed (8)')?.detail).toBe('тесты 6/8, упало 2')
+    expect(parseOutcome(' Tests  2 failed | 6 passed (8)')?.detail).toEqual({
+      kind: 'tests',
+      passed: 6,
+      total: 8,
+      failed: 2,
+    })
   })
 
   test('coverage table', async () => {
     expect(parseOutcome('All files  |   87.5 |  80 | 90 | 87.5 |')).toEqual({
       percent: 87.5,
-      detail: 'покрытие',
+      detail: { kind: 'coverage' },
     })
   })
 

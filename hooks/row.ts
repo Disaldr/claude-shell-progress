@@ -1,6 +1,8 @@
 // What one band row says, from a Run alone: no `$`, so the tests cover it directly.
 
 import type { Run } from '../types'
+import type { Strings } from './i18n'
+import { detailText } from './i18n'
 import { formatElapsed, formatPercent } from './parse'
 
 /** Remaining time by the average rate since the first percent seen; null until it can tell. */
@@ -27,28 +29,35 @@ export function stalledFor(run: Run, stallMs: number): number | null {
   return still >= stallMs ? still : null
 }
 
-export const ETA_WIDTH = 10
+/** The width of the time-left column: `~0:06`, or the stalled word and its time. */
+export function etaWidthOf(t: Strings): number {
+  return Math.max(6, t.stalled.length + 5)
+}
 
 /** The fixed-width columns between the bar and the description. */
-export function columnsOf(run: Run, stallMs: number, detailWidth: number): string {
+export function columnsOf(run: Run, stallMs: number, detailWidth: number, t: Strings): string {
   const stall = stalledFor(run, stallMs)
   const eta = etaOf(run)
   const hint =
-    stall !== null ? `стоит ${formatElapsed(stall)}` : eta !== null ? `~${formatElapsed(eta)}` : ''
+    stall !== null
+      ? `${t.stalled} ${formatElapsed(stall)}`
+      : eta !== null
+        ? `~${formatElapsed(eta)}`
+        : ''
 
   return (
     ` ${formatPercent(run.percent ?? 0).padStart(6)}` +
     ` ${formatElapsed(run.updatedAt - run.startedAt).padStart(5)}` +
-    ` ${hint.padEnd(ETA_WIDTH)}` +
-    (detailWidth > 0 ? ` ${(run.detail ?? '').padEnd(detailWidth)}` : '')
+    ` ${hint.padEnd(etaWidthOf(t))}` +
+    (detailWidth > 0 ? ` ${detailText(run.detail, t).padEnd(detailWidth)}` : '')
   )
 }
 
 /** The one-line summary a notification carries. */
-export function summaryOf(run: Run): string {
+export function summaryOf(run: Run, t: Strings): string {
   const parts = [
     formatPercent(run.percent ?? 0),
-    run.detail || null,
+    detailText(run.detail, t) || null,
     formatElapsed(run.updatedAt - run.startedAt),
   ].filter(part => part !== null)
 

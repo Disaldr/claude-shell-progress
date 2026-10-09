@@ -1,6 +1,6 @@
 {
   "name": "shell-progress",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Процент выполнения и время для shell-команд Claude с измеримым результатом: прогресс, шаги N/M, доля прошедших тестов, покрытие",
   "author": {
     "name": "Aleksandr Koshelev"
@@ -16,6 +16,20 @@
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language / Язык",
+      "description": "Language of the band, the command and notifications: auto follows the system locale",
+      "options": [
+        "auto",
+        "en",
+        "ru",
+        "de",
+        "es",
+        "fr"
+      ],
+      "default": "auto"
+    },
     "keepDone": {
       "type": "number",
       "title": "Хранить завершённых строк",

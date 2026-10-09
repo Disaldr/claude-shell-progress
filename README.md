@@ -22,10 +22,10 @@ A **Claude Code** plugin: while Claude runs a shell command (the Bash tool) that
 — for foreground and background commands alike.
 
 ```text
-• ████████░░░░░░░░░░░░    40%  0:04 ~0:06      4/10                   Build modules
-◦ ██████████░░░░░░░░░░    50%  0:02 ~0:02      2/4                    Background build
-• ██████░░░░░░░░░░░░░░    30%  0:41 стоит 0:35 3/10                   Slow job
-✓ ███████████████████░    95%  0:14            тесты 38/40, упало 2   Run tests ✕
+• ████████░░░░░░░░░░░░    40%  0:04 ~0:06        4/10                   Build modules
+◦ ██████████░░░░░░░░░░    50%  0:02 ~0:02        2/4                    Background build
+• ██████░░░░░░░░░░░░░░    30%  0:41 stalled 0:35 3/10                   Slow job
+✓ ███████████████████░    95%  0:14              tests 38/40, 2 failed  Run tests ✕
 ```
 
 The command itself is never rewritten, so your Bash permission rules keep matching it.
@@ -67,17 +67,18 @@ command's description last, so several bars line up.
 | `◦` | Running in the background (`run_in_background`, Ctrl+B, or moved there by a timeout) |
 | `✓` / `✗` | Finished successfully / with an error |
 | `~0:06` | Time left, from the average rate since the first reading |
-| `стоит 0:35` | No progress for longer than the threshold: the row dims and turns yellow |
+| `stalled 0:35` | No progress for longer than the threshold: the row dims and turns yellow |
 
 - Finished rows stay until you remove them: **✕** at the end of a row removes one,
-  **«Убрать завершённые»** (shown once two or more are finished) removes them all,
+  **Clear finished** (shown once two or more are finished) removes them all,
   and so does the `/shell-progress` command.
 - A command that ran longer than a minute sends a **system notification** when it ends:
   `✓ Long build · 100% · 2/2 · 1:21`.
 - Commands with nothing measurable in their output show nothing.
 
-The plugin's own labels are in Russian (`стоит` — stalled, `тесты 38/40, упало 2` —
-tests 38/40, 2 failed).
+The band speaks **English, Russian, German, Spanish and French**: by default it follows
+your system locale (`LC_ALL`, `LC_MESSAGES`, `LANG`), falling back to English; the
+`language` setting picks one explicitly.
 
 ### What counts as measurable
 
@@ -112,6 +113,7 @@ Change them in `/config` (the `shell-progress` rows):
 
 | Field | Default | What it does |
 |---|---|---|
+| `language` | auto | `auto` (system locale), `en`, `ru`, `de`, `es` or `fr` |
 | `keepDone` | 3 | How many finished rows to keep |
 | `barWidth` | 20 | Bar width, 5–40 characters (at most 10 on a narrow terminal) |
 | `autoDismissMinutes` | 0 | Remove successful rows after N minutes; 0 — never |
@@ -159,6 +161,7 @@ claude plugin test .
 | `hooks/register.tsx` | The hooks: Bash calls, background tasks, the band, the command, the prompt section |
 | `hooks/parse.ts` | Parses output: percent, steps, test summary, coverage |
 | `hooks/row.ts` | A row's columns, time left and stall mark |
+| `hooks/i18n.ts` | The band's words per language, and the locale lookup |
 | `tests/` | Parser tests and scenarios on a fake clock and file system |
 
 ---

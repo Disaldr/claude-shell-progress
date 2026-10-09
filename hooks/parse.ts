@@ -1,6 +1,8 @@
 // Pure parsing of shell output: no `$`, so the tests cover it directly.
 
-export type Measure = { percent: number; detail: string }
+import type { Detail } from '../types'
+
+export type Measure = { percent: number; detail: Detail | null }
 
 const ANSI = /\u001b\[[0-9;?]*[A-Za-z]|\u001b\][^\u0007]*\u0007/g
 const PERCENT = /(?<![\d.])(\d{1,3}(?:\.\d+)?)\s?%/g
@@ -34,7 +36,7 @@ function ratioOf(line: string): Measure | null {
     return null
   }
 
-  return { percent: round((done / total) * 100), detail: `${done}/${total}` }
+  return { percent: round((done / total) * 100), detail: { kind: 'steps', done, total } }
 }
 
 function percentOf(line: string): Measure | null {
@@ -47,7 +49,7 @@ function percentOf(line: string): Measure | null {
   }
   const ratio = ratioOf(line)
 
-  return { percent: round(last), detail: ratio?.detail ?? '' }
+  return { percent: round(last), detail: ratio?.detail ?? null }
 }
 
 /** The live progress the newest lines of the output report, if any. */
@@ -87,7 +89,7 @@ export function parseTests(text: string): Measure | null {
 
     return {
       percent: round((passed / total) * 100),
-      detail: `тесты ${passed}/${total}${failed > 0 ? `, упало ${failed}` : ''}`,
+      detail: { kind: 'tests', passed, total, failed },
     }
   }
 
@@ -101,7 +103,7 @@ export function parseCoverage(text: string): Measure | null {
     const found =
       line.match(/^All files\s*\|\s*([\d.]+)/) ?? line.match(/^TOTAL\b.*?\s(\d{1,3}(?:\.\d+)?)%$/)
     if (found) {
-      return { percent: round(Number(found[1])), detail: 'покрытие' }
+      return { percent: round(Number(found[1])), detail: { kind: 'coverage' } }
     }
   }
 

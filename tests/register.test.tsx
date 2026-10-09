@@ -38,7 +38,7 @@ type Fake = {
  * output the test writes line by line (`<id>.output`; a background call's
  * `task-<id>.output`, answered at once), and a notifier that records texts.
  */
-function engineBeneath(on: On, background: string[] = []): Fake {
+function engineBeneath(on: On, background: string[] = [], locale?: string): Fake {
   const clock = mock.clock(on, { now: 1_000 })
   const files = new Map<string, string>()
   const endings = new Map<string, () => void>()
@@ -60,7 +60,7 @@ function engineBeneath(on: On, background: string[] = []): Fake {
   })
   on('session.start', ($, e) => e as never)
   on('session.id', () => ({ value: 'sid' }))
-  on('env.get', () => ({ value: undefined }))
+  on('env.get', ($, e) => ({ value: e.name === 'LANG' ? locale : undefined }))
   on('fs.exists', ($, e) => ({ value: e.path === DIR }))
   on('fs.list', ($, e) => {
     if (e.path === '/private/tmp') {
@@ -196,7 +196,7 @@ test('a running command shows live percent, steps and remaining time', async ($,
   await running
   const done = (await texts(ui)).join('|')
   expect(done).toMatch(/✓ █{20}\|/)
-  expect(done).toMatch(/100% {2}0:1\d {12}10\/10/)
+  expect(done).toMatch(/100% {2}0:1\d {14}10\/10/)
   expect(await ui.find({ key: 'dismiss-a' })).toBeDefined()
   await ui.unmount()
 })
@@ -209,7 +209,7 @@ test('progress that stands still is marked', async ($, on) => {
   await fake.clock.advance(36_000)
 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect((await texts(ui)).join('|')).toMatch(/стоит 0:3\d/)
+  expect((await texts(ui)).join('|')).toMatch(/stalled 0:3\d/)
 
   fake.end('a')
   await running
@@ -278,7 +278,7 @@ test('a long command notifies when it ends; a short one does not', async ($, on)
   expect(fake.notified[0]).toMatch(/^✓ Long build · 100% · 2\/2 · 1:2\d$/)
 })
 
-test('✕ removes one finished row, «Убрать завершённые» the rest', async ($, on) => {
+test('✕ removes one finished row, «Clear finished» the rest', async ($, on) => {
   const fake = engineBeneath(on)
   for (const id of ['a', 'b', 'c']) {
     await quick($, fake, id)
@@ -329,8 +329,48 @@ test('/shell-progress clears finished rows and says how many', async ($, on) => 
   }
 
   const ran = await $.command.run(CLEAR)
-  expect(JSON.stringify(ran)).toContain('Убрано строк: 2')
+  expect(JSON.stringify(ran)).toContain('Cleared 2 rows.')
 
   const again = await $.command.run(CLEAR)
-  expect(JSON.stringify(again)).toContain('Нет завершённых задач')
+  expect(JSON.stringify(again)).toContain('No finished rows to clear.')
+})
+
+test('language option: Russian words in the band and the command', {
+  options: { language: 'ru' },
+}, async ($, on) => {
+  const fake = engineBeneath(on)
+  const running = call($, 'a', 'Тесты')
+  await fake.clock.advance(100)
+  fake.print('a', 'Tests:       1 failed, 49 passed, 50 total')
+  fake.end('a')
+  await running
+  await quick($, fake, 'b')
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const band = (await texts(ui)).join('|')
+  expect(band).toContain('тесты 49/50, упало 1')
+  expect(JSON.stringify(await ui.find({ key: 'dismiss-all' }))).toContain('Убрать завершённые')
+  await ui.unmount()
+
+  expect(JSON.stringify(await $.command.run(CLEAR))).toContain('Убрано строк: 2')
+})
+
+test('auto follows the locale: LANG=de_DE.UTF-8 gives German', async ($, on) => {
+  const fake = engineBeneath(on, [], 'de_DE.UTF-8')
+  const running = call($, 'a', 'Langsam')
+  await fake.clock.advance(100)
+  fake.print('a', '[1/5] step')
+  await fake.clock.advance(36_000)
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await texts(ui)).join('|')).toMatch(/steht 0:3\d/)
+  fake.end('a')
+  await running
+  await ui.unmount()
+})
+
+test('an unsupported locale falls back to English', async ($, on) => {
+  const fake = engineBeneath(on, [], 'ja_JP.UTF-8')
+  await quick($, fake, 'a')
+  expect(JSON.stringify(await $.command.run(CLEAR))).toContain('Cleared 1 row.')
 })
