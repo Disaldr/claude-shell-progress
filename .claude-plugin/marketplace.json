@@ -1,0 +1,14 @@
+{
+  "name": "clapro",
+  "description": "Плагины Claude Code от Aleksandr Koshelev",
+  "owner": {
+    "name": "Aleksandr Koshelev"
+  },
+  "plugins": [
+    {
+      "name": "shell-progress",
+      "source": "./",
+      "description": "Процент выполнения и время для shell-команд Claude с измеримым результатом: прогресс, шаги N/M, доля прошедших тестов, покрытие"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "name": "shell-progress",
+  "version": "0.4.0",
+  "description": "Процент выполнения и время для shell-команд Claude с измеримым результатом: прогресс, шаги N/M, доля прошедших тестов, покрытие",
+  "author": {
+    "name": "Aleksandr Koshelev"
+  },
+  "homepage": "https://github.com/Disaldr/claude-shell-progress",
+  "repository": "https://github.com/Disaldr/claude-shell-progress",
+  "license": "MIT",
+  "keywords": [
+    "bash",
+    "progress",
+    "status-line",
+    "tests"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "keepDone": {
+      "type": "number",
+      "title": "Хранить завершённых строк",
+      "description": "Сколько завершённых задач держать над полем ввода",
+      "default": 3
+    },
+    "barWidth": {
+      "type": "number",
+      "title": "Ширина полосы",
+      "description": "Ширина прогресс-бара в символах (5–40)",
+      "default": 20
+    },
+    "autoDismissMinutes": {
+      "type": "number",
+      "title": "Убирать успешные через, мин",
+      "description": "Через сколько минут убирать успешно завершённые строки; 0 — не убирать",
+      "default": 0
+    },
+    "notifyAfterSeconds": {
+      "type": "number",
+      "title": "Уведомлять после, с",
+      "description": "Системное уведомление о завершении команд, шедших дольше этого; 0 — не уведомлять",
+      "default": 60
+    },
+    "stallSeconds": {
+      "type": "number",
+      "title": "«Стоит» после, с",
+      "description": "Через сколько секунд без изменения прогресса помечать строку; 0 — не помечать",
+      "default": 30
+    },
+    "guidance": {
+      "type": "boolean",
+      "title": "Инструкции для Claude",
+      "description": "Добавлять в системный промпт просьбу делать прогресс долгих команд измеримым",
+      "default": true
+    }
+  }
+}
